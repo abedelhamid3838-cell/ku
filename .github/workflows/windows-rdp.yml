@@ -19,15 +19,16 @@ jobs:
         shell: powershell
       - name: Set Admin Password
         run: |
-          net user runneradmin "${{ github.event.inputs.password }}" /add 2>$null
-          net user runneradmin "${{ github.event.inputs.password }}"
-          net localgroup administrators runneradmin /add 2>$null
-          net localgroup "Remote Desktop Users" runneradmin /add 2>$null
+          $user = $env:USERNAME
+          $pass = "${{ github.event.inputs.password }}"
+          net user $user $pass
+          net localgroup "Remote Desktop Users" $user /add
+          Write-Host "User: $user"
+          Write-Host "Password set successfully."
         shell: powershell
       - name: Download bore
         run: |
-          $url = "https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-pc-windows-msvc.zip"
-          Invoke-WebRequest $url -OutFile bore.zip
+          Invoke-WebRequest "https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-pc-windows-msvc.zip" -OutFile bore.zip
           Expand-Archive bore.zip -DestinationPath C:\bore
         shell: powershell
       - name: Start bore tunnel
@@ -51,16 +52,12 @@ jobs:
           Write-Host " RDP Connection Info"
           Write-Host "==========================================="
           if ($port) {
-            Write-Host " Host     : bore.pub"
-            Write-Host " Port     : $port"
             Write-Host " Address  : bore.pub:$port"
           } else {
             Write-Host " Check logs above for: listening at bore.pub:XXXXX"
           }
-          Write-Host " Username : runneradmin"
+          Write-Host " Username : $env:USERNAME"
           Write-Host " Password : ${{ github.event.inputs.password }}"
-          Write-Host "==========================================="
-          Write-Host " Open Remote Desktop and enter: bore.pub:$port"
           Write-Host "==========================================="
         shell: powershell
       - name: Keep alive
