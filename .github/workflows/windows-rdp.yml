@@ -24,42 +24,32 @@ jobs:
       - name: Set Admin Password
         run: |
           $user = $env:USERNAME
-          $pass = "${{ github.event.inputs.password }}"
-          net user $user $pass
+          net user $user "${{ github.event.inputs.password }}"
           net localgroup "Remote Desktop Users" $user /add
-          Write-Host "User ready: $user"
+          Write-Host "User: $user"
         shell: powershell
 
-      - name: Download bore
+      - name: Download playit.gg
         run: |
-          Invoke-WebRequest "https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-pc-windows-msvc.zip" -OutFile bore.zip
-          Expand-Archive bore.zip -DestinationPath C:\bore
+          Invoke-WebRequest "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-windows-x86_64.exe" -OutFile "C:\playit.exe"
         shell: powershell
 
-      - name: Start bore and show connection info
+      - name: Start playit tunnel and show info
         run: |
           $job = Start-Job -ScriptBlock {
-            & "C:\bore\bore.exe" local 3389 --to bore.pub 2>&1
+            & "C:\playit.exe" --secret_key anonymous 2>&1
           }
-
-          Start-Sleep -Seconds 10
-
+          Write-Host "Waiting for tunnel..."
+          Start-Sleep -Seconds 20
           $output = Receive-Job -Job $job
-          Write-Host "--- bore output ---"
           Write-Host $output
-
-          $port = ($output | Select-String -Pattern 'bore\.pub:(\d+)').Matches.Groups[1].Value
-
           Write-Host "==========================================="
           Write-Host " RDP Connection Info"
           Write-Host "==========================================="
-          if ($port) {
-            Write-Host " Address  : bore.pub:$port"
-          } else {
-            Write-Host " Look above for: listening at bore.pub:XXXXX"
-          }
+          Write-Host " Look above for the tunnel address"
           Write-Host " Username : $env:USERNAME"
           Write-Host " Password : ${{ github.event.inputs.password }}"
+          Write-Host " Protocol : TCP over port 443 (HTTPS)"
           Write-Host "==========================================="
         shell: powershell
 
