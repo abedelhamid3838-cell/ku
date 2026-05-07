@@ -1,4 +1,5 @@
 name: Windows 11 RDP
+
 on:
   workflow_dispatch:
     inputs:
@@ -6,10 +7,12 @@ on:
         description: 'RDP Password'
         required: true
         default: 'Admin@1234'
+
 jobs:
   build:
     runs-on: windows-2022
     timeout-minutes: 360
+
     steps:
       - name: Enable RDP
         run: |
@@ -17,49 +20,49 @@ jobs:
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
         shell: powershell
+
       - name: Set Admin Password
         run: |
           $user = $env:USERNAME
           $pass = "${{ github.event.inputs.password }}"
           net user $user $pass
           net localgroup "Remote Desktop Users" $user /add
-          Write-Host "User: $user"
-          Write-Host "Password set successfully."
+          Write-Host "User ready: $user"
         shell: powershell
+
       - name: Download bore
         run: |
           Invoke-WebRequest "https://github.com/ekzhang/bore/releases/download/v0.5.1/bore-v0.5.1-x86_64-pc-windows-msvc.zip" -OutFile bore.zip
           Expand-Archive bore.zip -DestinationPath C:\bore
         shell: powershell
-      - name: Start bore tunnel
+
+      - name: Start bore and show connection info
         run: |
-          Start-Process -FilePath "C:\bore\bore.exe" `
-            -ArgumentList "local 3389 --to bore.pub" `
-            -RedirectStandardOutput "C:\bore\out.txt" `
-            -RedirectStandardError "C:\bore\err.txt" `
-            -WindowStyle Hidden
-          Start-Sleep -Seconds 8
-          $out = Get-Content "C:\bore\out.txt" -Raw -ErrorAction SilentlyContinue
-          $err = Get-Content "C:\bore\err.txt" -Raw -ErrorAction SilentlyContinue
-          Write-Host $out
-          Write-Host $err
-        shell: powershell
-      - name: Show Connection Info
-        run: |
-          $err = Get-Content "C:\bore\err.txt" -Raw -ErrorAction SilentlyContinue
-          $port = [regex]::Match($err, 'bore\.pub:(\d+)').Groups[1].Value
+          $job = Start-Job -ScriptBlock {
+            & "C:\bore\bore.exe" local 3389 --to bore.pub 2>&1
+          }
+
+          Start-Sleep -Seconds 10
+
+          $output = Receive-Job -Job $job
+          Write-Host "--- bore output ---"
+          Write-Host $output
+
+          $port = ($output | Select-String -Pattern 'bore\.pub:(\d+)').Matches.Groups[1].Value
+
           Write-Host "==========================================="
           Write-Host " RDP Connection Info"
           Write-Host "==========================================="
           if ($port) {
             Write-Host " Address  : bore.pub:$port"
           } else {
-            Write-Host " Check logs above for: listening at bore.pub:XXXXX"
+            Write-Host " Look above for: listening at bore.pub:XXXXX"
           }
           Write-Host " Username : $env:USERNAME"
           Write-Host " Password : ${{ github.event.inputs.password }}"
           Write-Host "==========================================="
         shell: powershell
+
       - name: Keep alive
         run: Start-Sleep -Seconds 21600
         shell: powershell
