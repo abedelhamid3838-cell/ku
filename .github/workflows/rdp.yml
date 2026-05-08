@@ -8,8 +8,8 @@ jobs:
     steps:
       - name: Download Cloudflared
         run: |
-          Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi -OutFile cloudflared.msi
-          Start-Process msiexec.exe -Wait -ArgumentList '/i cloudflared.msi /quiet'
+          # Download the standalone binary directly to avoid MSI installation issues
+          Invoke-WebRequest https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
 
       - name: Enable RDP and Setup User
         run: |
@@ -21,4 +21,5 @@ jobs:
 
       - name: Start Cloudflare Tunnel
         run: |
-          cloudflared tunnel --url tcp://localhost:3389
+          # Use .\ to run the local exe and start the tunnel on RDP port 3389
+          .\cloudflared.exe tunnel --url tcp://localhost:3389
