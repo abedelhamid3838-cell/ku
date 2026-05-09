@@ -21,38 +21,51 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 0
         shell: powershell
 
-      - name: Set Admin Password
-        run: |
-          $user = $env:USERNAME
-          net user $user "${{ github.event.inputs.password }}"
-          net localgroup "Remote Desktop Users" $user /add
-          Write-Host "User: $user"
-        shell: powershell
+      name: Windows 11 RDP
 
-      - name: Download playit.gg
-        run: |
-          Invoke-WebRequest "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-windows-x86_64.exe" -OutFile "C:\playit.exe"
-        shell: powershell
+on:
+  workflow_dispatch:
+    inputs:
+      password:
+        description: 'Session Password (min 6 chars)'
+        required: true
+        default: 'cloud123'
 
-      - name: Start playit tunnel and show info
+jobs:
+  rdp:
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    steps:
+      - name: Download RustDesk Server
+        shell: powershell
         run: |
-          $job = Start-Job -ScriptBlock {
-            & "C:\playit.exe" --secret_key anonymous 2>&1
+          $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.6/rustdesk-1.2.6-x86_64.exe"
+          Invoke-WebRequest -Uri $url -OutFile rustdesk.exe
+          Write-Host "RustDesk downloaded."
+
+      - name: Install and Configure RustDesk
+        shell: powershell
+        run: |
+          Start-Process -FilePath rustdesk.exe -ArgumentList "--silent-install" -Wait
+          Start-Sleep -Seconds 5
+          $rdPath = "C:\Program Files\RustDesk\RustDesk.exe"
+          if (-not (Test-Path $rdPath)) {
+            $rdPath = "$env:LOCALAPPDATA\Programs\RustDesk\RustDesk.exe"
           }
-          Write-Host "Waiting for tunnel..."
-          Start-Sleep -Seconds 20
-          $output = Receive-Job -Job $job
-          Write-Host $output
+          Start-Process -FilePath $rdPath
+          Start-Sleep -Seconds 10
+          $pass = "${{ github.event.inputs.password }}"
+          & $rdPath --password $pass
+          Start-Sleep -Seconds 5
+          $id = & $rdPath --get-id 2>&1
           Write-Host "==========================================="
-          Write-Host " RDP Connection Info"
+          Write-Host " RustDesk Connection Info"
           Write-Host "==========================================="
-          Write-Host " Look above for the tunnel address"
-          Write-Host " Username : $env:USERNAME"
-          Write-Host " Password : ${{ github.event.inputs.password }}"
-          Write-Host " Protocol : TCP over port 443 (HTTPS)"
+          Write-Host " ID       : $id"
+          Write-Host " Password : $pass"
           Write-Host "==========================================="
-        shell: powershell
 
       - name: Keep alive
-        run: Start-Sleep -Seconds 21600
         shell: powershell
+        run: Start-Sleep -Seconds 21300
